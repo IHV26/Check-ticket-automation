@@ -12,11 +12,34 @@ import { chromium } from 'playwright';
 
 const EVENT_URL = 'https://www.entertix.ro/bilete/40037/fc-rapid-1923-sepsi-20-iulie-2026-stadion-rapid-giulesti-bucuresti.html';
 const FIREBASE_URL = 'https://rapid-tickets-sold-832a8-default-rtdb.europe-west1.firebasedatabase.app';
+const FIREBASE_API_KEY = 'AIzaSyBfscrmDJH30rMY5yfx26Xi3CHPoOCp-X0';
+
+// Shared admin credentials, supplied as GitHub Actions secrets (see README) —
+// never hardcoded here.
+const FIREBASE_EMAIL = process.env.FIREBASE_EMAIL;
+const FIREBASE_PASSWORD = process.env.FIREBASE_PASSWORD;
 
 // Which tracked match this run belongs to — matched against the "game" field
 // stored in Firebase. Change this (or duplicate the workflow) to track a
 // different fixture.
 const MATCH_QUERY = 'Sepsi';
+
+async function signIn() {
+  if (!FIREBASE_EMAIL || !FIREBASE_PASSWORD) {
+    throw new Error('FIREBASE_EMAIL / FIREBASE_PASSWORD are not set — add them as repo secrets.');
+  }
+  const res = await fetch(
+    `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_API_KEY}`,
+    {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: FIREBASE_EMAIL, password: FIREBASE_PASSWORD, returnSecureToken: true }),
+    }
+  );
+  if (!res.ok) throw new Error(`Firebase sign-in failed: ${res.status} ${await res.text()}`);
+  const data = await res.json();
+  return data.idToken;
+}
 
 async function findMatchId(query) {
   const res = await fetch(`${FIREBASE_URL}/matches.json`);
@@ -105,8 +128,8 @@ async function scrapeCounts() {
   }
 }
 
-async function saveEntry(matchId, counts) {
-  const res = await fetch(`${FIREBASE_URL}/matches/${matchId}/entries.json`, {
+async function saveEntry(matchId, counts, idToken) {
+  const res = await fetch(`${FIREBASE_URL}/matches/${matchId}/entries.json?auth=${idToken}`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ ts: { '.sv': 'timestamp' }, ...counts }),
@@ -117,9 +140,10 @@ async function saveEntry(matchId, counts) {
 }
 
 async function run() {
+  const idToken = await signIn();
   const matchId = await findMatchId(MATCH_QUERY);
   const counts = await scrapeCounts();
-  await saveEntry(matchId, counts);
+  await saveEntry(matchId, counts, idToken);
   console.log(`Saved for match ${matchId}:`, counts);
 }
 

@@ -2,7 +2,7 @@ name: Check Rapid ticket sales
 
 on:
   schedule:
-    - cron: '5 * * * *'   # 5 minutes past every hour (UTC)
+    - cron: '23 * * * *'  # 23 minutes past every hour (UTC) — avoids the busy top-of-hour window
   workflow_dispatch:       # lets you trigger it manually from the Actions tab
     inputs:
       force:

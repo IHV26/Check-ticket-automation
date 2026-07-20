@@ -7,6 +7,11 @@ needed once this is running.
 
 ## Setup (about 10 minutes, free)
 
+0. **Firebase Auth must be set up first** (see the main project notes) — this
+   script signs in with a shared admin account before writing, since the
+   database now requires authentication for writes. You'll need that
+   account's email and password for step 2 below.
+
 1. **Create a new GitHub repository.** Make it **public** — GitHub Actions
    minutes are unlimited on public repos, and this job (browser install +
    run) uses more minutes than a private repo's free tier comfortably
@@ -24,13 +29,22 @@ needed once this is running.
    four in (GitHub will recreate the folder structure automatically from
    the paths).
 
-3. **Test it manually first**, before waiting for the hourly trigger:
+3. **Add two repository secrets** (Settings → Secrets and variables →
+   Actions → New repository secret):
+   - `FIREBASE_EMAIL` — the admin account's email
+   - `FIREBASE_PASSWORD` — its password
+
+   These are encrypted by GitHub and never appear in logs or to anyone
+   browsing the repo — that's the whole point of using secrets instead of
+   putting them in the script itself.
+
+5. **Test it manually first**, before waiting for the hourly trigger:
    - Go to the **Actions** tab of your repo
    - Click **"Check Rapid ticket sales"** in the left sidebar
    - Click **Run workflow** → **Run workflow** (green button)
    - Wait ~1–2 minutes, then click into the run to watch the logs
 
-4. **Check it worked**: open the public tracker site (or the Firebase
+6. **Check it worked**: open the public tracker site (or the Firebase
    console → Realtime Database) and confirm a new entry showed up with
    today's timestamp.
 

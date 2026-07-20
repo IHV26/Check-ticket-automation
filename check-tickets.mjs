@@ -30,18 +30,27 @@ async function findMatchId(query) {
 }
 
 async function dismissCookieBanner(page) {
-  const candidates = [/accept/i, /sunt de acord/i, /^ok$/i, /agree/i, /accept all/i];
-  for (const pattern of candidates) {
-    try {
-      const btn = page.getByRole('button', { name: pattern }).first();
-      if (await btn.isVisible({ timeout: 2000 })) {
-        await btn.click({ timeout: 2000 });
-        return;
-      }
-    } catch {
-      // not found with this pattern, try the next one
-    }
+  try {
+    // Cookiebot injects its dialog asynchronously, so give it a real chance to appear
+    const dialog = page.locator('#CybotCookiebotDialog, [id*="Cookiebot" i]').first();
+    await dialog.waitFor({ state: 'visible', timeout: 8000 });
+    const allowAll = page.getByRole('button', { name: /permite toate|allow all|accept all/i }).first();
+    await allowAll.click({ timeout: 5000 });
+    await dialog.waitFor({ state: 'hidden', timeout: 5000 }).catch(() => {});
+  } catch {
+    // banner never showed up, or button wasn't found — fine, proceed anyway
   }
+}
+
+async function zoomUntilSeatsRender(page, maxAttempts = 12) {
+  const zoomInBtn = page.getByText(/^apropie$/i).first();
+  for (let i = 0; i < maxAttempts; i++) {
+    const seatCount = await page.locator('div.seatingseat').count();
+    if (seatCount > 0) return true;
+    await zoomInBtn.click({ timeout: 5000 }).catch(() => {});
+    await page.waitForTimeout(700);
+  }
+  return (await page.locator('div.seatingseat').count()) > 0;
 }
 
 async function scrapeCounts() {
@@ -57,9 +66,15 @@ async function scrapeCounts() {
     const tab = page.getByText(/planul\s*s[aă]lii/i).first();
     await tab.click({ timeout: 15000 });
 
-    // Wait for the seat map to actually populate
-    await page.waitForSelector('div.seatingseat', { timeout: 30000 });
-    await page.waitForTimeout(1500); // let any remaining seats finish rendering
+    // The map starts zoomed out, showing only sector blocks — zoom in until
+    // individual seats actually exist in the DOM
+    const seatsRendered = await zoomUntilSeatsRender(page);
+    if (!seatsRendered) {
+      throw new Error('Zoomed in repeatedly but individual seat elements never appeared — the map behavior may have changed.');
+    }
+
+    await page.waitForSelector('div.seatingseat', { timeout: 15000 });
+    await page.waitForTimeout(2000); // let any remaining seats finish rendering
 
     const counts = await page.evaluate(() => {
       const all = document.querySelectorAll('div[class]');

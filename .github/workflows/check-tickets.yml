@@ -59,6 +59,9 @@ jobs:
 
       - run: node check-tickets.mjs
         if: steps.gate.outputs.should_run == 'true'
+        env:
+          FIREBASE_EMAIL: ${{ secrets.FIREBASE_EMAIL }}
+          FIREBASE_PASSWORD: ${{ secrets.FIREBASE_PASSWORD }}
 
       - name: Upload debug screenshot on failure
         if: failure()

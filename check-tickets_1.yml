@@ -1,0 +1,69 @@
+name: Check Rapid ticket sales
+
+on:
+  schedule:
+    - cron: '5 * * * *'   # 5 minutes past every hour (UTC)
+  workflow_dispatch:       # lets you trigger it manually from the Actions tab
+    inputs:
+      force:
+        description: 'Run even outside the normal ticket-sale window'
+        type: boolean
+        default: false
+
+env:
+  # Kickoff time for this fixture (ISO 8601, with timezone offset).
+  # Update this — and MATCH_QUERY in check-tickets.mjs — for each new match.
+  MATCH_DATE: '2026-07-20T21:30:00+03:00'
+  # How many days before kickoff tickets usually go on sale. A few days of
+  # buffer are added on top automatically below.
+  DAYS_BEFORE: 9
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check if we're in the active ticket window
+        id: gate
+        run: |
+          MATCH_TS=$(date -d "$MATCH_DATE" +%s)
+          NOW_TS=$(date +%s)
+          WINDOW_START=$((MATCH_TS - DAYS_BEFORE*24*60*60))
+          if [ "${{ github.event.inputs.force }}" = "true" ] || { [ "$NOW_TS" -ge "$WINDOW_START" ] && [ "$NOW_TS" -lt "$MATCH_TS" ]; }; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "In active window — proceeding."
+          else
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Outside the active window (tickets usually appear ~${DAYS_BEFORE} days before kickoff, and there's nothing left to track after kickoff). Skipping — this costs no real Actions minutes."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.should_run == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.should_run == 'true'
+        with:
+          node-version: 20
+
+      - name: Cache Playwright browsers
+        if: steps.gate.outputs.should_run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}
+
+      - run: npm install playwright
+        if: steps.gate.outputs.should_run == 'true'
+      - run: npx playwright install --with-deps chromium
+        if: steps.gate.outputs.should_run == 'true'
+
+      - run: node check-tickets.mjs
+        if: steps.gate.outputs.should_run == 'true'
+
+      - name: Upload debug screenshot on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshot
+          path: debug.png
+          if-no-files-found: ignore

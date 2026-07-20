@@ -1,0 +1,10 @@
+{
+  "name": "rapid-ticket-automation",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "description": "Hourly scraper that reads sold/available seat counts from Entertix and writes them to Firebase.",
+  "dependencies": {
+    "playwright": "^1.47.0"
+  }
+}

@@ -99,6 +99,26 @@ async function scrapeCounts() {
     await page.waitForSelector('div.seatingseat', { timeout: 15000 });
     await page.waitForTimeout(2000); // let any remaining seats finish rendering
 
+    // --- TEMPORARY DIAGNOSTIC: dump sector structure so we can identify
+    // which sectors are the away allocation / security buffer, instead of
+    // guessing. Safe to remove once that's figured out. ---
+    try {
+      const sectorDebug = await page.evaluate(() => {
+        const sectors = Array.from(document.querySelectorAll('div.seatingsector'));
+        return sectors.map((el) => ({
+          dataId: el.getAttribute('data-id'),
+          class: el.getAttribute('class'),
+          style: el.getAttribute('style'),
+          text: (el.textContent || '').trim().slice(0, 60),
+        }));
+      });
+      console.log('SECTOR_DEBUG_START');
+      console.log(JSON.stringify(sectorDebug, null, 2));
+      console.log('SECTOR_DEBUG_END');
+    } catch (diagErr) {
+      console.log('Sector diagnostic failed (non-fatal):', diagErr.message);
+    }
+
     const counts = await page.evaluate(() => {
       const all = document.querySelectorAll('div[class]');
       let sold = 0, active = 0, cart = 0;

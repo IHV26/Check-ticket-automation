@@ -1,4 +1,4 @@
-// check-tickets.mjs
+// check-tickets-cfr.mjs
 //
 // Loads the Entertix ticket page, clicks through to the seat map, counts
 // seats by color (grey = sold, anything else = available/held), and writes
@@ -10,7 +10,7 @@
 
 import { chromium } from 'playwright';
 
-const EVENT_URL = 'https://www.entertix.ro/bilete/40037/fc-rapid-1923-sepsi-20-iulie-2026-stadion-rapid-giulesti-bucuresti.html';
+const EVENT_URL = 'error';
 const FIREBASE_URL = 'https://rapid-tickets-sold-832a8-default-rtdb.europe-west1.firebasedatabase.app';
 const FIREBASE_API_KEY = 'AIzaSyBfscrmDJH30rMY5yfx26Xi3CHPoOCp-X0';
 
@@ -22,7 +22,7 @@ const FIREBASE_PASSWORD = process.env.FIREBASE_PASSWORD;
 // Which tracked match this run belongs to — matched against the "game" field
 // stored in Firebase. Change this (or duplicate the workflow) to track a
 // different fixture.
-const MATCH_QUERY = 'Sepsi';
+const MATCH_QUERY = 'CFR Cluj';
 
 async function signIn() {
   if (!FIREBASE_EMAIL || !FIREBASE_PASSWORD) {

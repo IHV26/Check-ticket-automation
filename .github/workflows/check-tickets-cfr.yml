@@ -1,4 +1,4 @@
-name: Check Rapid ticket sales
+name: Check Rapid ticket sales CFR
 
 on:
   schedule:
@@ -13,7 +13,7 @@ on:
 env:
   # Kickoff time for this fixture (ISO 8601, with timezone offset).
   # Update this — and MATCH_QUERY in check-tickets.mjs — for each new match.
-  MATCH_DATE: '2026-07-20T21:30:00+03:00'
+  MATCH_DATE: '2026-08-02T21:30:00+03:00'
   # How many days before kickoff tickets usually go on sale. A few days of
   # buffer are added on top automatically below.
   DAYS_BEFORE: 9
@@ -89,7 +89,7 @@ jobs:
       - run: npx playwright install --with-deps chromium
         if: steps.gate.outputs.should_run == 'true'
 
-      - run: node check-tickets.mjs
+      - run: node check-tickets-cfr.mjs
         if: steps.gate.outputs.should_run == 'true'
         env:
           FIREBASE_EMAIL: ${{ secrets.FIREBASE_EMAIL }}

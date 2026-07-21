@@ -12,7 +12,7 @@ import { chromium } from 'playwright';
 
 const EVENT_URL = 'error';
 const FIREBASE_URL = 'https://rapid-tickets-sold-832a8-default-rtdb.europe-west1.firebasedatabase.app';
-const FIREBASE_API_KEY = 'AIzaSyBfscrmDJH30rMY5yfx26Xi3CHPoOCp-X0';
+const FIREBASE_API_KEY = 'eRCNEGcV52fyfZdkvODSOz1DmMR2';
 
 // Shared admin credentials, supplied as GitHub Actions secrets (see README) —
 // never hardcoded here.

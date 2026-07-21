@@ -1,0 +1,105 @@
+name: Check Rapid ticket sales
+
+on:
+  schedule:
+    - cron: '8,38 * * * *'  # every 30 minutes (UTC) — actual frequency is throttled below
+  workflow_dispatch:         # lets you trigger it manually from the Actions tab
+    inputs:
+      force:
+        description: 'Run even outside the normal ticket-sale window'
+        type: boolean
+        default: false
+
+env:
+  # Kickoff time for this fixture (ISO 8601, with timezone offset).
+  # Update this — and MATCH_QUERY in check-tickets.mjs — for each new match.
+  MATCH_DATE: '2026-07-20T21:30:00+03:00'
+  # How many days before kickoff tickets usually go on sale. A few days of
+  # buffer are added on top automatically below.
+  DAYS_BEFORE: 9
+  # Timezone used ONLY for the quiet-hours and matchday-frequency checks below
+  # (an IANA name, so it stays correct across daylight saving automatically).
+  LOCAL_TZ: 'Europe/Copenhagen'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check if we should actually run this tick
+        id: gate
+        run: |
+          MATCH_TS=$(date -d "$MATCH_DATE" +%s)
+          NOW_TS=$(date +%s)
+          WINDOW_START=$((MATCH_TS - DAYS_BEFORE*24*60*60))
+
+          LOCAL_HOUR=$(TZ="$LOCAL_TZ" date +%H)
+          MIN=$(date +%M)
+          TODAY_LOCAL=$(TZ="$LOCAL_TZ" date +%Y-%m-%d)
+          MATCHDAY_LOCAL=$(TZ="$LOCAL_TZ" date -d "$MATCH_DATE" +%Y-%m-%d)
+
+          IN_WINDOW=false
+          [ "$NOW_TS" -ge "$WINDOW_START" ] && [ "$NOW_TS" -lt "$MATCH_TS" ] && IN_WINDOW=true
+
+          QUIET_HOURS=false
+          { [ "$LOCAL_HOUR" -ge 23 ] || [ "$LOCAL_HOUR" -lt 8 ]; } && QUIET_HOURS=true
+
+          IS_MATCHDAY=false
+          [ "$TODAY_LOCAL" = "$MATCHDAY_LOCAL" ] && IS_MATCHDAY=true
+
+          # Away from matchday: only act on the top-of-hour tick (hourly cadence).
+          # On matchday itself: act on every tick (half-hourly cadence).
+          FREQ_OK=true
+          [ "$IS_MATCHDAY" != "true" ] && [ "$MIN" -ge 30 ] && FREQ_OK=false
+
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Forced run — bypassing all checks."
+          elif [ "$IN_WINDOW" != "true" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Outside the active window (tickets usually appear ~${DAYS_BEFORE} days before kickoff, and there's nothing left to track after kickoff). Skipping."
+          elif [ "$QUIET_HOURS" = "true" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Quiet hours (23:00–08:00 $LOCAL_TZ). Skipping."
+          elif [ "$FREQ_OK" != "true" ]; then
+            echo "should_run=false" >> "$GITHUB_OUTPUT"
+            echo "Not matchday — hourly cadence only, and this is the half-hour tick. Skipping."
+          else
+            echo "should_run=true" >> "$GITHUB_OUTPUT"
+            echo "Proceeding (matchday: $IS_MATCHDAY)."
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.should_run == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.should_run == 'true'
+        with:
+          node-version: 20
+
+      - name: Cache Playwright browsers
+        if: steps.gate.outputs.should_run == 'true'
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ runner.os }}
+
+      - run: npm install playwright
+        if: steps.gate.outputs.should_run == 'true'
+      - run: npx playwright install --with-deps chromium
+        if: steps.gate.outputs.should_run == 'true'
+
+      - run: node check-tickets.mjs
+        if: steps.gate.outputs.should_run == 'true'
+        env:
+          FIREBASE_EMAIL: ${{ secrets.FIREBASE_EMAIL }}
+          FIREBASE_PASSWORD: ${{ secrets.FIREBASE_PASSWORD }}
+
+      - name: Upload debug screenshot on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: debug-screenshot
+          path: debug.png
+          if-no-files-found: ignore
+          

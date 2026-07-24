@@ -29,11 +29,10 @@ const MATCH_QUERY = 'CFR';
 // guessed. Excluded entirely (not counted as sold, available, or part of
 // total capacity). Entertix issues a fresh batch of seat IDs per event
 // listing, so these do NOT carry over from other matches — re-verify each
-// time. For this match the two zones did not chain into one contiguous run
-// (unlike Sepsi), so they're kept as two separate ranges.
+// time. All five identified sectors for this match chained into one single,
+// gap-free run of seat IDs.
 const EXCLUDED_ID_RANGES = [
-  { label: 'Non-public zone A', min: 37790368, max: 37790779 },
-  { label: 'Non-public zone B', min: 37791541, max: 37791819 },
+  { label: 'Non-public zones (5 sectors, combined)', min: 37790368, max: 37791819 },
 ];
 
 async function signIn() {

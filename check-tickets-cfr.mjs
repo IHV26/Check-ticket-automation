@@ -1,4 +1,4 @@
-// check-tickets-cfr.mjs
+// check-tickets.mjs
 //
 // Loads the Entertix ticket page, clicks through to the seat map, counts
 // seats by color (grey = sold, anything else = available/held), and writes
@@ -10,9 +10,9 @@
 
 import { chromium } from 'playwright';
 
-const EVENT_URL = 'error';
+const EVENT_URL = 'https://www.entertix.ro/bilete/40110/fc-rapid-cfr-cluj-2-august-2026-stadion-rapid-giulesti-bucuresti.html';
 const FIREBASE_URL = 'https://rapid-tickets-sold-832a8-default-rtdb.europe-west1.firebasedatabase.app';
-const FIREBASE_API_KEY = 'eRCNEGcV52fyfZdkvODSOz1DmMR2';
+const FIREBASE_API_KEY = 'AIzaSyBfscrmDJH30rMY5yfx26Xi3CHPoOCp-X0';
 
 // Shared admin credentials, supplied as GitHub Actions secrets (see README) —
 // never hardcoded here.
@@ -22,7 +22,19 @@ const FIREBASE_PASSWORD = process.env.FIREBASE_PASSWORD;
 // Which tracked match this run belongs to — matched against the "game" field
 // stored in Firebase. Change this (or duplicate the workflow) to track a
 // different fixture.
-const MATCH_QUERY = 'CFR Cluj';
+const MATCH_QUERY = 'CFR';
+
+// Seat data-ids that are structurally never offered for public sale on this
+// site — identified by inspecting the actual sector containers rather than
+// guessed. Excluded entirely (not counted as sold, available, or part of
+// total capacity). Entertix issues a fresh batch of seat IDs per event
+// listing, so these do NOT carry over from other matches — re-verify each
+// time. For this match the two zones did not chain into one contiguous run
+// (unlike Sepsi), so they're kept as two separate ranges.
+const EXCLUDED_ID_RANGES = [
+  { label: 'Non-public zone A', min: 37790368, max: 37790779 },
+  { label: 'Non-public zone B', min: 37791541, max: 37791819 },
+];
 
 async function signIn() {
   if (!FIREBASE_EMAIL || !FIREBASE_PASSWORD) {
@@ -99,17 +111,28 @@ async function scrapeCounts() {
     await page.waitForSelector('div.seatingseat', { timeout: 15000 });
     await page.waitForTimeout(2000); // let any remaining seats finish rendering
 
-    const counts = await page.evaluate(() => {
+    const counts = await page.evaluate((excludedRanges) => {
+      const isExcluded = (idStr) => {
+        const n = Number(idStr);
+        return excludedRanges.some((r) => n >= r.min && n <= r.max);
+      };
       const all = document.querySelectorAll('div[class]');
-      let sold = 0, active = 0, cart = 0;
+      let sold = 0, active = 0, cart = 0, excluded = 0;
       all.forEach((el) => {
         const c = (el.getAttribute('class') || '').trim();
-        if (c === 'seatingseat') sold++;
-        else if (/\bseatingseatactive\b/.test(c) && /\bseatingseatcart\b/.test(c)) cart++;
-        else if (/\bseatingseatactive\b/.test(c)) active++;
+        const id = el.getAttribute('data-id');
+        if (c === 'seatingseat') {
+          if (isExcluded(id)) excluded++; else sold++;
+        } else if (/\bseatingseatactive\b/.test(c) && /\bseatingseatcart\b/.test(c)) {
+          if (isExcluded(id)) excluded++; else cart++;
+        } else if (/\bseatingseatactive\b/.test(c)) {
+          if (isExcluded(id)) excluded++; else active++;
+        }
       });
-      return { sold, available: active, cart, total: sold + active + cart };
-    });
+      return { sold, available: active, cart, excluded, total: sold + active + cart };
+    }, EXCLUDED_ID_RANGES);
+
+    console.log(`Excluded ${counts.excluded} seats (away allocation / other non-public zones).`);
 
     if (counts.total === 0) {
       throw new Error('No seat elements found — page structure may have changed.');

@@ -12,11 +12,13 @@ on:
 
 env:
   # Kickoff time for this fixture (ISO 8601, with timezone offset).
-  # Update this — and MATCH_QUERY in check-tickets.mjs — for each new match.
+  # Update this — and MATCH_QUERY in check-tickets-cfr.mjs — for each new match.
   MATCH_DATE: '2026-08-02T21:30:00+03:00'
-  # How many days before kickoff tickets usually go on sale. A few days of
-  # buffer are added on top automatically below.
-  DAYS_BEFORE: 9
+  # How many days before kickoff tickets usually go on sale. Widened beyond
+  # the usual ~9 days on purpose — tickets have sometimes appeared earlier
+  # than expected, so this errs on the side of checking too early rather
+  # than missing an early on-sale date.
+  DAYS_BEFORE: 21
   # Timezone used ONLY for the quiet-hours and matchday-frequency checks below
   # (an IANA name, so it stays correct across daylight saving automatically).
   LOCAL_TZ: 'Europe/Copenhagen'
@@ -102,4 +104,3 @@ jobs:
           name: debug-screenshot
           path: debug.png
           if-no-files-found: ignore
-          

@@ -46,13 +46,14 @@ jobs:
           QUIET_HOURS=false
           { [ "$LOCAL_HOUR" -ge 23 ] || [ "$LOCAL_HOUR" -lt 8 ]; } && QUIET_HOURS=true
 
-          IS_MATCHDAY=false
-          [ "$TODAY_LOCAL" = "$MATCHDAY_LOCAL" ] && IS_MATCHDAY=true
+          DAY_BEFORE_LOCAL=$(date -d "$MATCHDAY_LOCAL -1 day" +%Y-%m-%d)
+          IS_MATCHDAY_OR_EVE=false
+          { [ "$TODAY_LOCAL" = "$MATCHDAY_LOCAL" ] || [ "$TODAY_LOCAL" = "$DAY_BEFORE_LOCAL" ]; } && IS_MATCHDAY_OR_EVE=true
 
-          # Away from matchday: only act on the top-of-hour tick (hourly cadence).
-          # On matchday itself: act on every tick (half-hourly cadence).
+          # Away from matchday/eve: only act on the top-of-hour tick (hourly cadence).
+          # On matchday or the day before: act on every tick (half-hourly cadence).
           FREQ_OK=true
-          [ "$IS_MATCHDAY" != "true" ] && [ "$MIN" -ge 30 ] && FREQ_OK=false
+          [ "$IS_MATCHDAY_OR_EVE" != "true" ] && [ "$MIN" -ge 30 ] && FREQ_OK=false
 
           if [ "${{ github.event.inputs.force }}" = "true" ]; then
             echo "should_run=true" >> "$GITHUB_OUTPUT"
@@ -65,10 +66,10 @@ jobs:
             echo "Quiet hours (23:00–08:00 $LOCAL_TZ). Skipping."
           elif [ "$FREQ_OK" != "true" ]; then
             echo "should_run=false" >> "$GITHUB_OUTPUT"
-            echo "Not matchday — hourly cadence only, and this is the half-hour tick. Skipping."
+            echo "Not matchday or eve — hourly cadence only, and this is the half-hour tick. Skipping."
           else
             echo "should_run=true" >> "$GITHUB_OUTPUT"
-            echo "Proceeding (matchday: $IS_MATCHDAY)."
+            echo "Proceeding (matchday or eve: $IS_MATCHDAY_OR_EVE)."
           fi
 
       - uses: actions/checkout@v4

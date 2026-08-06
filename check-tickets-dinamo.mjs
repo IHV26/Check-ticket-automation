@@ -27,9 +27,9 @@ const MATCH_QUERY = 'Dinamo';
 // Seat data-ids that are structurally never offered for public sale on this
 // site. Entertix issues a fresh batch of seat IDs per event listing, so
 // these must be re-identified for every match — nothing carries over.
-// EMPTY until the real sectors are identified from this event's live map.
+// All five sectors for this match chained into one single, gap-free run.
 const EXCLUDED_ID_RANGES = [
-  // { label: '...', min: ..., max: ... },
+  { label: 'Non-public zones (5 sectors, combined)', min: 38181812, max: 38183263 },
 ];
 
 async function signIn() {

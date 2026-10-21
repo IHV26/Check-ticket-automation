@@ -55,11 +55,24 @@ async function findMatchId(query) {
   const res = await fetch(`${FIREBASE_URL}/matches.json`);
   if (!res.ok) throw new Error(`Failed to read matches from Firebase: ${res.status}`);
   const matches = (await res.json()) || {};
-  const entry = Object.entries(matches).find(([, m]) =>
+  // The same opponent can appear more than once (home and away, or a rematch),
+  // so collect every match containing the query and pick the right one.
+  const candidates = Object.entries(matches).filter(([, m]) =>
     (m.game || '').toLowerCase().includes(query.toLowerCase())
   );
-  if (!entry) throw new Error(`No match found in Firebase containing "${query}". Add it via the site first.`);
-  return entry[0];
+  if (candidates.length === 0) {
+    throw new Error(`No match found in Firebase containing "${query}". Add it via the site first.`);
+  }
+  // 1) Prefer the record whose stored Entertix link is exactly this event.
+  const byUrl = candidates.find(([, m]) => m.sourceUrl && m.sourceUrl === EVENT_URL);
+  if (byUrl) return byUrl[0];
+  // 2) Otherwise the nearest upcoming one (kickoff not more than 6h ago).
+  const cutoff = Date.now() - 6 * 3600 * 1000;
+  const upcoming = candidates
+    .filter(([, m]) => typeof m.kickoffTs === 'number' && m.kickoffTs >= cutoff)
+    .sort((a, b) => a[1].kickoffTs - b[1].kickoffTs);
+  if (upcoming.length) return upcoming[0][0];
+  throw new Error(`Found ${candidates.length} match(es) containing "${query}" but none upcoming — check kickoffTs in Firebase.`);
 }
 
 async function dismissCookieBanner(page) {

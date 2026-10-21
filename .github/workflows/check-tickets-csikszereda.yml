@@ -1,0 +1,83 @@
+name: Check Rapid ticket sales Csikszereda
+
+on:
+  schedule:
+    - cron: '8,38 * * * *'
+  workflow_dispatch:
+    inputs:
+      force:
+        description: 'Bypass the time-window gate and run now'
+        type: boolean
+        default: false
+
+env:
+  MATCH_DATE: '2026-10-30T21:00:00+02:00'
+  DAYS_BEFORE: 21
+  LOCAL_TZ: 'Europe/Copenhagen'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Gate (window, quiet hours, cadence)
+        id: gate
+        run: |
+          NOW=$(date +%s)
+          MATCH_TS=$(date -d "$MATCH_DATE" +%s)
+          START=$(( MATCH_TS - DAYS_BEFORE*86400 ))
+          FORCE="${{ github.event.inputs.force }}"
+          RUN=true
+          if [ "$FORCE" = "true" ]; then
+            echo "Forced run."
+          else
+            if [ "$NOW" -lt "$START" ] || [ "$NOW" -gt "$(( MATCH_TS + 7200 ))" ]; then
+              echo "Outside window."; RUN=false
+            fi
+            HOUR=$(TZ="$LOCAL_TZ" date +%-H)
+            MIN=$(TZ="$LOCAL_TZ" date +%-M)
+            if [ "$HOUR" -ge 23 ] || [ "$HOUR" -lt 8 ]; then
+              echo "Quiet hours."; RUN=false
+            fi
+            TODAY=$(TZ="$LOCAL_TZ" date +%F)
+            MATCHDAY=$(TZ="$LOCAL_TZ" date -d "@$MATCH_TS" +%F)
+            EVE=$(TZ="$LOCAL_TZ" date -d "@$(( MATCH_TS - 86400 ))" +%F)
+            if [ "$TODAY" != "$MATCHDAY" ] && [ "$TODAY" != "$EVE" ] && [ "$MIN" -ge 30 ]; then
+              echo "Not matchday/eve — hourly cadence only."; RUN=false
+            fi
+          fi
+          echo "run=$RUN" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v4
+        if: steps.gate.outputs.run == 'true'
+
+      - uses: actions/setup-node@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          node-version: 22
+
+      - uses: actions/cache@v4
+        if: steps.gate.outputs.run == 'true'
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-v1
+
+      - name: Install Playwright
+        if: steps.gate.outputs.run == 'true'
+        run: |
+          npm install playwright
+          npx playwright install --with-deps chromium
+
+      - name: Check tickets
+        if: steps.gate.outputs.run == 'true'
+        run: node check-tickets-csikszereda.mjs
+        env:
+          FIREBASE_EMAIL: ${{ secrets.FIREBASE_EMAIL }}
+          FIREBASE_PASSWORD: ${{ secrets.FIREBASE_PASSWORD }}
+
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: debug-screenshot
+          path: debug.png
+          if-no-files-found: ignore

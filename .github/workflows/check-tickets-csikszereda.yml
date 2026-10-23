@@ -11,7 +11,7 @@ on:
         default: false
 
 env:
-  MATCH_DATE: '2026-10-30T21:00:00+02:00'
+  MATCH_DATE: '2026-10-30T20:30:00+02:00'
   DAYS_BEFORE: 21
   LOCAL_TZ: 'Europe/Copenhagen'
 
